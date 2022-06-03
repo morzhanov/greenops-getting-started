@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: greenops-license
+  namespace: greenops
+data:
+  key: <LICENSE>
