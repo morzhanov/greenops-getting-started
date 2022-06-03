@@ -1,0 +1,354 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: greenops-server
+  namespace: greenops
+rules:
+- apiGroups: ["core", "pipeline.greenopsinc.io"] #All that is needed here is access to secrets & pipelines
+  resources: ["secrets", "namespaces", "pipelines"] #Secrets are used to store information like Git credentials & TLS config
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: greenops-reposerver
+  namespace: greenops
+rules:
+- apiGroups: ["core"] #All that is needed here is access to secrets
+  resources: ["secrets", "namespaces"] #Secrets are used to store information like Git credentials & TLS config
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: greenops-controller
+  namespace: greenops
+rules:
+- apiGroups: ["core", "pipeline.greenopsinc.io"] #All that is needed here is access to secrets & pipelines
+  resources: ["secrets", "namespaces", "pipelines"] #Secrets are used to store information like Git credentials & TLS config
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: greenops-commanddelegator
+  namespace: greenops
+rules:
+- apiGroups: ["core"] #All that is needed here is access to secrets
+  resources: ["secrets", "namespaces"] #Secrets are used to store information like Git credentials & TLS config
+  verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: greenops-server
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: greenops-reposerver
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: greenops-controller
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: greenops-commanddelegator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: greenops-server
+subjects:
+  - kind: ServiceAccount
+    name: greenops-server
+    namespace: greenops
+roleRef:
+  kind: ClusterRole
+  name: greenops-server
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: greenops-reposerver
+subjects:
+  - kind: ServiceAccount
+    name: greenops-reposerver
+    namespace: greenops
+roleRef:
+  kind: ClusterRole
+  name: greenops-reposerver
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: greenops-controller
+subjects:
+  - kind: ServiceAccount
+    name: greenops-controller
+    namespace: greenops
+roleRef:
+  kind: ClusterRole
+  name: greenops-controller
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: greenops-commanddelegator
+subjects:
+  - kind: ServiceAccount
+    name: greenops-commanddelegator
+    namespace: greenops
+roleRef:
+  kind: ClusterRole
+  name: greenops-commanddelegator
+  apiGroup: rbac.authorization.k8s.io
+---
+#Redis Service & Deployment
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: redisserver
+  name: redisserver
+spec:
+  ports:
+    - name: "6379"
+      port: 6379
+      targetPort: 6379
+  selector:
+    service: redisserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: redisserver
+  name: redisserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: redisserver
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        service: redisserver
+    spec:
+      containers:
+        - image: redis
+          imagePullPolicy: IfNotPresent
+          name: redisserver
+          ports:
+            - containerPort: 6379
+          args:
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - always
+            - --save 60 1
+          resources: { }
+          volumeMounts:
+            - mountPath: /data/redis
+              name: redis-storage
+      restartPolicy: Always
+      volumes:
+        - name: redis-storage
+          emptyDir: { }
+---
+#WorkflowTrigger Service & Deployment
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: greenops-server
+  name: greenops-server
+spec:
+  type: NodePort
+  ports:
+    - name: "8080"
+      port: 8080
+      targetPort: 8080
+      nodePort: 30007
+  selector:
+    service: greenops-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: greenops-server
+  name: greenops-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: greenops-server
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        service: greenops-server
+    spec:
+      serviceAccountName: greenops-server
+      containers:
+        - env:
+            - name: SSO_CLIENT_ID
+              value: greenops-sso
+            - name: SSO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: greenops-sso
+                  key: client-secret
+            - name: SSO_REDIRECT_URI
+              value: https://192.168.64.12:30007/oauth2/callback
+            - name: SSO_APP_REDIRECT_URI
+              value: https://192.168.64.12:30007
+            - name: SSO_ISSUER_URI
+              value: https://192.168.64.12:31644/api/dex
+            - name: LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: greenops-license
+                  key: key
+          image: docker.io/greenopsinc/goserver:v0.10.0-a
+          imagePullPolicy: IfNotPresent
+          name: greenops-server
+          ports:
+            - containerPort: 8080
+          resources: {}
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Always
+---
+#PipelineRepoServer Service & Deployment
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: greenops-reposerver
+  name: greenops-reposerver
+spec:
+  ports:
+    - name: "8080"
+      port: 8080
+      targetPort: 8080
+  selector:
+    service: greenops-reposerver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: greenops-reposerver
+  name: greenops-reposerver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: greenops-reposerver
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        service: greenops-reposerver
+    spec:
+      serviceAccountName: greenops-reposerver
+      containers:
+        - image: docker.io/greenopsinc/pipelinereposerver:v0.10.0-a
+          imagePullPolicy: IfNotPresent
+          name: greenops-reposerver
+          ports:
+            - containerPort: 8080
+          resources: {}
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Always
+---
+#WorkflowOrchestrator Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: greenops-controller
+  name: greenops-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: greenops-controller
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        service: greenops-controller
+    spec:
+      serviceAccountName: greenops-controller
+      containers:
+        - env:
+            - name: METRICS_BIND_ADDRESS_ENV_NAME
+              value: localhost:8082
+            - name: HEALTH_PROBE_BIND_ADDRESS_ENV_NAME
+              value: localhost:8083
+          image: docker.io/greenopsinc/controller:v0.10.0-a
+          imagePullPolicy: IfNotPresent
+          name: greenops-controller
+          resources: {}
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Always
+---
+#CommandDelegator Service & Deployment
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    service: greenops-commanddelegator
+  name: greenops-commanddelegator
+spec:
+  ports:
+    - name: "8080"
+      port: 8080
+      targetPort: 8080
+  selector:
+    service: greenops-commanddelegator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    service: greenops-commanddelegator
+  name: greenops-commanddelegator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: greenops-commanddelegator
+  strategy: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        service: greenops-commanddelegator
+    spec:
+      containers:
+        - image: docker.io/greenopsinc/commanddelegator:v0.10.0-a
+          imagePullPolicy: IfNotPresent
+          name: greenops-commanddelegator
+          ports:
+            - containerPort: 8080
+          resources: {}
+      imagePullSecrets:
+        - name: regcred
+      restartPolicy: Always
