@@ -1,0 +1,80 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: greenops-daemon
+  namespace: greenops
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["workflows", "templates", "workflowtemplates", "clusterworkflowtemplates", "cronworkflows"]
+    verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: greenops-daemon
+  namespace: greenops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: greenops-daemon
+  namespace: greenops
+subjects:
+  - kind: ServiceAccount
+    name: greenops-daemon
+    namespace: greenops
+roleRef:
+  kind: ClusterRole
+  name: greenops-daemon
+  apiGroup: rbac.authorization.k8s.io
+---
+# ClientWrapper Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: greenops-daemon
+  labels:
+    app: greenops-daemon
+spec:
+  selector:
+    matchLabels:
+      app: greenops-daemon
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: greenops-daemon
+    spec:
+      serviceAccountName: greenops-daemon
+      containers:
+        - env:
+          - name: WORKFLOW_TRIGGER_SERVER_ADDR
+            value: https://greenops-server.greenops.svc.cluster.local:8080
+          - name: COMMAND_DELEGATOR_URL
+            value: https://greenops-commanddelegator.greenops.svc.cluster.local:8080
+          - name: CLUSTER_NAME
+            value: hubcluster
+          - name: ARGO_WORKFLOWS_URL
+            value: <ARGO_WORKFLOWS_URL>
+          - name: ARGO_CD_URL
+            value: <ARGO_CD_URL>
+          - name: ARGO_CD_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: argocd-user
+                key: username
+          - name: ARGO_CD_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: argocd-user
+                key: password
+          - name: GREENOPS_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: greenops-daemon-apikey
+                key: password
+          name: greenops-daemon
+          image: docker.io/greenopsinc/godaemon:v0.10.0-a
+          imagePullPolicy: IfNotPresent
+      imagePullSecrets:
+        - name: regcred
