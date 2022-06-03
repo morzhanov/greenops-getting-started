@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: greenops-sso
+data:
+  client-id: Z3JlZW5vcHMtc3Nv
+  client-secret: RmRzcW5ON0hYcDNkOWI0VjZuaHR6Y1c5amdoTkRFWllOM2JKVUZmTEVQOTVRc3hHS2dkNjdYNFE3U2NSOXp0Vg==
