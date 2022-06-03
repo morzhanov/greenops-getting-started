@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: greenops-daemon-apikey
+  namespace: greenops
+data:
+  key: <KEY>
