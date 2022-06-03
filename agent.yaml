@@ -4,8 +4,8 @@ metadata:
   name: greenops-daemon
   namespace: greenops
 rules:
-  - apiGroups: ["argoproj.io"]
-    resources: ["workflows", "templates", "workflowtemplates", "clusterworkflowtemplates", "cronworkflows"]
+  - apiGroups: ["argoproj.io", ""]
+    resources: ["namespaces", "secrets", "serviceaccounts", "workflows", "templates", "workflowtemplates", "clusterworkflowtemplates", "cronworkflows"]
     verbs: ["*"]
 ---
 apiVersion: v1
@@ -72,7 +72,7 @@ spec:
             valueFrom:
               secretKeyRef:
                 name: greenops-daemon-apikey
-                key: password
+                key: key
           name: greenops-daemon
           image: docker.io/greenopsinc/godaemon:v0.10.0-a
           imagePullPolicy: IfNotPresent

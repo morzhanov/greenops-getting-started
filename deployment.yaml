@@ -4,8 +4,8 @@ metadata:
   name: greenops-server
   namespace: greenops
 rules:
-- apiGroups: ["core", "pipeline.greenopsinc.io"] #All that is needed here is access to secrets & pipelines
-  resources: ["secrets", "namespaces", "pipelines"] #Secrets are used to store information like Git credentials & TLS config
+- apiGroups: ["core", "", "pipeline.greenopsinc.io"] #All that is needed here is access to secrets & pipelines
+  resources: ["secrets", "namespaces", "pipelines", "pipelines/status"] #Secrets are used to store information like Git credentials & TLS config
   verbs: ["*"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -14,7 +14,7 @@ metadata:
   name: greenops-reposerver
   namespace: greenops
 rules:
-- apiGroups: ["core"] #All that is needed here is access to secrets
+- apiGroups: ["core", ""] #All that is needed here is access to secrets
   resources: ["secrets", "namespaces"] #Secrets are used to store information like Git credentials & TLS config
   verbs: ["*"]
 ---
@@ -24,8 +24,8 @@ metadata:
   name: greenops-controller
   namespace: greenops
 rules:
-- apiGroups: ["core", "pipeline.greenopsinc.io"] #All that is needed here is access to secrets & pipelines
-  resources: ["secrets", "namespaces", "pipelines"] #Secrets are used to store information like Git credentials & TLS config
+- apiGroups: ["core", "", "pipeline.greenopsinc.io"] #All that is needed here is access to secrets & pipelines
+  resources: ["secrets", "namespaces", "pipelines", "pipelines/status"] #Secrets are used to store information like Git credentials & TLS config
   verbs: ["*"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -34,7 +34,7 @@ metadata:
   name: greenops-commanddelegator
   namespace: greenops
 rules:
-- apiGroups: ["core"] #All that is needed here is access to secrets
+- apiGroups: ["core", ""] #All that is needed here is access to secrets
   resources: ["secrets", "namespaces"] #Secrets are used to store information like Git credentials & TLS config
   verbs: ["*"]
 ---
@@ -209,11 +209,11 @@ spec:
                   name: greenops-sso
                   key: client-secret
             - name: SSO_REDIRECT_URI
-              value: https://192.168.64.12:30007/oauth2/callback
+              value: https://<GREENOPS_URL>/oauth2/callback
             - name: SSO_APP_REDIRECT_URI
-              value: https://192.168.64.12:30007
+              value: https://<GREENOPS_URL>
             - name: SSO_ISSUER_URI
-              value: https://192.168.64.12:31644/api/dex
+              value: https://<ARGO_CD_URL>/api/dex
             - name: LICENSE_KEY
               valueFrom:
                 secretKeyRef:
@@ -342,6 +342,7 @@ spec:
       labels:
         service: greenops-commanddelegator
     spec:
+      serviceAccountName: greenops-commanddelegator
       containers:
         - image: docker.io/greenopsinc/commanddelegator:v0.10.0-a
           imagePullPolicy: IfNotPresent
