@@ -27,7 +27,7 @@ spec:
       containers:
       - image: docker.io/1mihirpandya/testapp
         name: testapp
-        imagePullPolicy: Never
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
 ---
