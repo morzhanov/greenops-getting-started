@@ -1,0 +1,29 @@
+# NOTE: If Github enterprise is being used, add the field hostName to the GitHub config section, as shown in the comment below.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+  name: argocd-cm
+data:
+  dex.config: |
+    connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          # The hostName line should only be uncommented if Github enterprise is being used.
+          # hostName: github.acme.com
+          clientID: <client id>
+          clientSecret: <provisioned client secret>
+          orgs:
+          - name: <org name>
+    # Setting staticClients allows GreenOps to use ArgoCD's Dex installation for authentication.
+    staticClients:
+      - id: greenops-sso
+        name: GreenOps SSO
+        redirectURIs:
+          - https://<GREENOPS_URL>/oauth2/callback
+        secretEnv: GREENOPS_SSO_CLIENT_SECRET
+  url: https://<ARGO_CD_URL>
